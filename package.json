@@ -1,0 +1,25 @@
+{
+  "name": "vulnerable-rest-api",
+  "version": "1.0.0",
+  "description": "Student REST API demonstration with Broken Object Level Authorization (BOLA/IDOR)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --no-warnings src/server.js",
+    "test": "node --no-warnings test/test_api.js"
+  },
+  "keywords": [
+    "rest-api",
+    "security",
+    "idor",
+    "bola",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}
