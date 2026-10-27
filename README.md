@@ -58,11 +58,11 @@ The API is then available at `http://localhost:3000`.
 
 The local database is seeded with these accounts:
 
-| Username | Password | Role | Seed data |
-|---|---|---|---|
-| `alice` | `password123` | `student` | Alice's project note |
-| `bob` | `password123` | `student` | Private Note #42 |
-| `admin` | `adminpassword123` | `admin` | Administrative access |
+| Username | Password           | Role      | Seed data             |
+| -------- | ------------------ | --------- | --------------------- |
+| `alice`  | `password123`      | `student` | Alice's project note  |
+| `bob`    | `password123`      | `student` | Private Note #42      |
+| `admin`  | `adminpassword123` | `admin`   | Administrative access |
 
 These credentials are intentionally weak demonstration values. Never reuse
 them outside this local security lab.
@@ -76,19 +76,19 @@ All endpoints other than registration and login require a JWT in the
 Authorization: Bearer <token>
 ```
 
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Public | Register a student account |
-| `POST` | `/api/auth/login` | Public | Authenticate and receive a JWT |
-| `GET` | `/api/profile` | Authenticated | Retrieve the current user's profile |
-| `POST` | `/api/notes` | Authenticated | Create a note for the current user |
-| `GET` | `/api/notes` | Authenticated | List notes owned by the current user |
-| `GET` | `/api/notes/:id` | Authenticated | Retrieve a note; intentionally vulnerable to BOLA |
-| `PUT` | `/api/notes/:id` | Owner or admin | Update an authorized note |
-| `DELETE` | `/api/notes/:id` | Owner or admin | Delete an authorized note |
-| `POST` | `/api/projects/metadata` | Authenticated | Upload project metadata and an artifact |
-| `GET` | `/api/projects/metadata` | Authenticated | List the current user's project metadata |
-| `GET` | `/api/admin/users` | Admin | List registered users |
+| Method   | Endpoint                 | Access         | Description                                       |
+| -------- | ------------------------ | -------------- | ------------------------------------------------- |
+| `POST`   | `/api/auth/register`     | Public         | Register a student account                        |
+| `POST`   | `/api/auth/login`        | Public         | Authenticate and receive a JWT                    |
+| `GET`    | `/api/profile`           | Authenticated  | Retrieve the current user's profile               |
+| `POST`   | `/api/notes`             | Authenticated  | Create a note for the current user                |
+| `GET`    | `/api/notes`             | Authenticated  | List notes owned by the current user              |
+| `GET`    | `/api/notes/:id`         | Authenticated  | Retrieve a note; intentionally vulnerable to BOLA |
+| `PUT`    | `/api/notes/:id`         | Owner or admin | Update an authorized note                         |
+| `DELETE` | `/api/notes/:id`         | Owner or admin | Delete an authorized note                         |
+| `POST`   | `/api/projects/metadata` | Authenticated  | Upload project metadata and an artifact           |
+| `GET`    | `/api/projects/metadata` | Authenticated  | List the current user's project metadata          |
+| `GET`    | `/api/admin/users`       | Admin          | List registered users                             |
 
 ### Quick BOLA Demonstration
 
@@ -122,19 +122,19 @@ corresponding write-protection checks.
 
 ## Project Structure
 
-| Path | Purpose |
-|---|---|
-| [`src/server.js`](src/server.js) | Starts the HTTP server |
-| [`src/app.js`](src/app.js) | Configures Express and mounts routes |
-| [`src/db.js`](src/db.js) | Initializes SQLite and demo seed data |
-| [`src/middleware/auth.js`](src/middleware/auth.js) | JWT authentication and admin authorization |
-| [`src/routes/auth.js`](src/routes/auth.js) | Registration and login |
-| [`src/routes/profile.js`](src/routes/profile.js) | Authenticated profile endpoint |
-| [`src/routes/notes.js`](src/routes/notes.js) | Notes CRUD endpoints |
-| [`src/routes/projects.js`](src/routes/projects.js) | Project metadata and uploads |
-| [`src/routes/admin.js`](src/routes/admin.js) | Admin user directory |
-| [`test/test_api.js`](test/test_api.js) | End-to-end test suite |
-| [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security report |
+| Path                                                                   | Purpose                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------ |
+| [`src/server.js`](src/server.js)                                       | Starts the HTTP server                     |
+| [`src/app.js`](src/app.js)                                             | Configures Express and mounts routes       |
+| [`src/db.js`](src/db.js)                                               | Initializes SQLite and demo seed data      |
+| [`src/middleware/auth.js`](src/middleware/auth.js)                     | JWT authentication and admin authorization |
+| [`src/routes/auth.js`](src/routes/auth.js)                             | Registration and login                     |
+| [`src/routes/profile.js`](src/routes/profile.js)                       | Authenticated profile endpoint             |
+| [`src/routes/notes.js`](src/routes/notes.js)                           | Notes CRUD endpoints                       |
+| [`src/routes/projects.js`](src/routes/projects.js)                     | Project metadata and uploads               |
+| [`src/routes/admin.js`](src/routes/admin.js)                           | Admin user directory                       |
+| [`test/test_api.js`](test/test_api.js)                                 | End-to-end test suite                      |
+| [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security report                   |
 
 ## Security Documentation
 
