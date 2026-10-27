@@ -98,19 +98,16 @@ router.get('/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ error: 'Note not found' });
     }
 
-    // -------------------------------------------------------------------------
-    // VULNERABILITY: Missing Object-Level Ownership Verification!
-    // The code only checks if the caller is authenticated (req.user exists),
-    // but never validates that note.user_id === req.user.id.
-    // -------------------------------------------------------------------------
+    // Object-level authorization check: Only the owner (or admin) can view the note
+    if (note.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden: You do not have permission to view this note',
+      });
+    }
 
     return res.status(200).json({
       message: 'Note retrieved successfully',
       note,
-      security_notice:
-        note.user_id !== req.user.id
-          ? 'WARNING: Authorization flaw exposed! You retrieved another user\'s note.'
-          : 'Normal access: You own this note.',
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to retrieve note', details: error.message });

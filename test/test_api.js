@@ -187,27 +187,46 @@ async function runTests() {
     assert.ok(Array.isArray(adminRes.data.users));
     assert.ok(adminRes.data.users.length >= 3);
 
-    // 11. DEMONSTRATION OF THE AUTHORIZATION FLAW (BOLA / IDOR): GET /api/notes/42
-    console.log('[Test 11] VULNERABILITY VERIFICATION: GET /api/notes/42');
+    // 11. REGRESSION VERIFICATION: GET /api/notes/:id Object-Level Authorization
+    console.log('[Test 11] GET /api/notes/:id (Remediation & Authorization Verification)');
 
     // Case A: Unauthenticated request must fail with 401
     const unauthNoteRes = await request('/api/notes/42');
     assert.strictEqual(unauthNoteRes.status, 401, 'Unauthenticated access must be rejected');
 
-    // Case B: Alice (User ID 1) requests Note #42 (Owned by Bob, User ID 2)
-    const idorRes = await request('/api/notes/42', {
+    // Case B: Alice (User ID 1) requests her own Note #1 -> must succeed with 200
+    const aliceOwnNoteRes = await request('/api/notes/1', {
       headers: { Authorization: `Bearer ${aliceToken}` },
     });
+    assert.strictEqual(aliceOwnNoteRes.status, 200, 'Owner can retrieve own note');
+    assert.strictEqual(aliceOwnNoteRes.data.note.id, 1);
+    assert.strictEqual(aliceOwnNoteRes.data.note.user_id, 1);
 
-    assert.strictEqual(idorRes.status, 200, 'Endpoint should return 200 because of missing ownership check');
-    assert.strictEqual(idorRes.data.note.id, 42, 'Note ID is 42');
-    assert.strictEqual(idorRes.data.note.user_id, 2, "Note belongs to Bob (user_id 2), not Alice (user_id 1)");
-    assert.strictEqual(idorRes.data.note.author_username, 'bob');
-    assert.strictEqual(idorRes.data.note.is_private, 1, 'Note is private, yet accessible across tenants');
-    console.log(' -> VULNERABILITY CONFIRMED: Alice successfully retrieved Bob\'s private Note #42:');
-    console.log('    Title:', idorRes.data.note.title);
-    console.log('    Author:', idorRes.data.note.author_username);
-    console.log('    Content:', idorRes.data.note.content);
+    // Case C: Alice (User ID 1) requests Bob's Note #42 (User ID 2) -> must be blocked with 403
+    const blockedRes = await request('/api/notes/42', {
+      headers: { Authorization: `Bearer ${aliceToken}` },
+    });
+    assert.strictEqual(blockedRes.status, 403, 'Cross-user access must be rejected with 403 Forbidden');
+    assert.strictEqual(
+      blockedRes.data.error,
+      'Forbidden: You do not have permission to view this note'
+    );
+    console.log(' -> REMEDIATION CONFIRMED: Alice blocked from reading Bob\'s private Note #42 (HTTP 403).');
+
+    // Case D: Bob (User ID 2) requests his own Note #42 -> must succeed with 200
+    const bobOwnNoteRes = await request('/api/notes/42', {
+      headers: { Authorization: `Bearer ${bobToken}` },
+    });
+    assert.strictEqual(bobOwnNoteRes.status, 200, 'Owner Bob can retrieve Note #42');
+    assert.strictEqual(bobOwnNoteRes.data.note.id, 42);
+    assert.strictEqual(bobOwnNoteRes.data.note.user_id, 2);
+
+    // Case E: Admin requests Note #42 -> must succeed with 200 (Administrator policy preserved)
+    const adminNoteRes = await request('/api/notes/42', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert.strictEqual(adminNoteRes.status, 200, 'Admin can retrieve Note #42');
+    assert.strictEqual(adminNoteRes.data.note.id, 42);
 
     // Case C: Ownership protection IS properly enforced on write operations (PUT/DELETE)
     console.log('[Test 12] PUT /api/notes/42 (Alice attempting to tamper with Bob\'s note)');

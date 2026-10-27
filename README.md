@@ -1,200 +1,154 @@
-# Student Portal REST API (BOLA / IDOR Demonstration)
+# Student Project Management API
 
-A small, self-contained REST API built in Node.js and Express demonstrating student authentication, role-based access control, resource management, and a classic **Broken Object Level Authorization (BOLA)** / **Insecure Direct Object Reference (IDOR)** vulnerability.
+A Node.js and Express REST API for academic project collaboration, private
+notes, and project artifact metadata. The repository is also an intentionally
+vulnerable security research testbed demonstrating Broken Object Level
+Authorization (BOLA), also known as Insecure Direct Object Reference (IDOR).
 
----
+> **Security warning:** This application contains an intentional BOLA
+> vulnerability in `GET /api/notes/:id`. Do not deploy it with real data or
+> expose it to an untrusted network. See the
+> [vulnerability case study](docs/vulnerability-case-study.md) for the full
+> analysis, evidence, impact assessment, and remediation guidance.
 
-## 1. Overview & Architecture
+## Features
 
-The API allows students to register, authenticate, view their profiles, manage private project notes, upload project metadata, and allows administrators to inspect user lists.
+- JWT-based authentication and role checks.
+- Student registration and login with bcrypt password hashing.
+- Profile retrieval scoped to the authenticated user.
+- CRUD operations for project notes.
+- Project metadata and multipart file upload.
+- Admin-only user directory.
+- SQLite persistence with seeded demo data.
+- End-to-end API and authorization tests.
 
-### Pre-seeded Demo Accounts
+## Prerequisites
 
-When the server starts, it initializes a local SQLite database (`data.sqlite`) pre-populated with:
+- Node.js 22 or later. The project uses Node's built-in `node:sqlite` module.
+- npm.
 
-| Username | Password | Role | Description |
-| :--- | :--- | :--- | :--- |
-| `alice` | `password123` | `student` | Student User (ID: 1). |
-| `bob` | `password123` | `student` | Student User (ID: 2). Owns private note **#42**. |
-| `admin` | `adminpassword123` | `admin` | Administrator User (ID: 3). |
+## Installation
 
----
-
-## 2. API Endpoints Reference
-
-### Authentication
-- **`POST /api/auth/register`**
-  - **Body**: `{ "username": "...", "email": "...", "password": "..." }`
-  - Creates a new student account (default role: `student`) and returns a JWT token.
-- **`POST /api/auth/login`**
-  - **Body**: `{ "username": "...", "password": "..." }`
-  - Validates credentials and returns a JWT token.
-
-### Profile
-- **`GET /api/profile`**
-  - **Header**: `Authorization: Bearer <token>`
-  - Retrieves the profile of the currently logged-in student.
-
-### Project Notes
-- **`POST /api/notes`**
-  - **Header**: `Authorization: Bearer <token>`
-  - **Body**: `{ "title": "...", "content": "...", "is_private": true }`
-  - Creates a new note linked to the authenticated user.
-- **`GET /api/notes`**
-  - **Header**: `Authorization: Bearer <token>`
-  - Lists all notes owned by the authenticated student.
-- **`GET /api/notes/:id`**  ⚠️ **VULNERABLE ENDPOINT (BOLA / IDOR)**
-  - **Header**: `Authorization: Bearer <token>`
-  - Verifies that the requester is authenticated, but **fails to check note ownership**.
-  - Any logged-in student can retrieve another student's private note by supplying its ID (e.g. `GET /api/notes/42`).
-- **`PUT /api/notes/:id`** (Secure)
-  - **Header**: `Authorization: Bearer <token>`
-  - Updates a note. Enforces that `note.user_id === req.user.id`.
-- **`DELETE /api/notes/:id`** (Secure)
-  - **Header**: `Authorization: Bearer <token>`
-  - Deletes a note. Enforces that `note.user_id === req.user.id`.
-
-### Project Metadata
-- **`POST /api/projects/metadata`**
-  - **Header**: `Authorization: Bearer <token>`
-  - **Body / Multipart**: Supports JSON or multipart/form-data upload (`project_name`, `description`, optional `file`).
-- **`GET /api/projects/metadata`**
-  - **Header**: `Authorization: Bearer <token>`
-  - Retrieves metadata uploaded by the current student.
-
-### Administrator Operations
-- **`GET /api/admin/users`**
-  - **Header**: `Authorization: Bearer <admin_token>`
-  - Returns a list of all registered users. Regular students receive `403 Forbidden`.
-
----
-
-## 3. The Vulnerability: Detailed Analysis
-
-### Location
-File: [`src/routes/notes.js`](src/routes/notes.js)
-
-### The Vulnerable Code Pattern
-```javascript
-// GET /api/notes/:id
-router.get('/:id', authenticateToken, (req, res) => {
-  const noteId = parseInt(req.params.id, 10);
-  
-  // 1. Authenticated check passes (req.user exists)
-  // 2. Note is fetched directly by ID from the URL
-  const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId);
-
-  if (!note) {
-    return res.status(404).json({ error: 'Note not found' });
-  }
-
-  // FLAW: Missing check: if (note.user_id !== req.user.id) { ... }
-  // The note is returned to ANY authenticated requester!
-  return res.status(200).json({ note });
-});
-```
-
-### Why It Happens
-The application confuses **Authentication** (verifying *who* the caller is) with **Authorization** (verifying *whether* the caller has rights to the specific resource). The endpoint verifies that a valid JWT token was presented, but blindly relies on the user-controlled object ID in the route path without validating resource ownership.
-
-### Contrast with Secure Implementation
-In the same file, the `PUT /api/notes/:id` and `DELETE /api/notes/:id` handlers implement proper object-level authorization:
-
-```javascript
-// Secure Authorization Check
-if (existingNote.user_id !== req.user.id && req.user.role !== 'admin') {
-  return res.status(403).json({
-    error: 'Forbidden: You do not have permission to access or modify this note',
-  });
-}
-```
-
-### Remediation (How to Fix It)
-To fix `GET /api/notes/:id`, either:
-
-1. **Explicit Ownership Condition in the Query:**
-   ```javascript
-   const note = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?').get(noteId, req.user.id);
-   if (!note) return res.status(404).json({ error: 'Note not found' });
-   ```
-2. **Post-Query Ownership Verification:**
-   ```javascript
-   if (note.user_id !== req.user.id && req.user.role !== 'admin') {
-     return res.status(403).json({ error: 'Access denied: You do not own this note' });
-   }
-   ```
-
----
-
-## 4. Running the Project
-
-### Prerequisites
-- Node.js (v18+)
-
-### Install Dependencies
 ```bash
 npm install
 ```
 
-### Start the Server
+The application creates and seeds its local SQLite database when it starts.
+The database file is local development data and should not be used for
+production workloads.
+
+## Running the API
+
+Start the server on port 3000:
+
 ```bash
 npm start
 ```
-The server will start on `http://localhost:3000`.
 
-### Run Automated Tests
+Set the `PORT` environment variable to use a different port:
+
+```powershell
+$env:PORT = 3001
+npm start
+```
+
+The API is then available at `http://localhost:3000`.
+
+## Demo Accounts
+
+The local database is seeded with these accounts:
+
+| Username | Password           | Role      | Seed data             |
+| -------- | ------------------ | --------- | --------------------- |
+| `alice`  | `password123`      | `student` | Alice's project note  |
+| `bob`    | `password123`      | `student` | Private Note #42      |
+| `admin`  | `adminpassword123` | `admin`   | Administrative access |
+
+These credentials are intentionally weak demonstration values. Never reuse
+them outside this local security lab.
+
+## API Overview
+
+All endpoints other than registration and login require a JWT in the
+`Authorization` header:
+
+```http
+Authorization: Bearer <token>
+```
+
+| Method   | Endpoint                 | Access         | Description                                       |
+| -------- | ------------------------ | -------------- | ------------------------------------------------- |
+| `POST`   | `/api/auth/register`     | Public         | Register a student account                        |
+| `POST`   | `/api/auth/login`        | Public         | Authenticate and receive a JWT                    |
+| `GET`    | `/api/profile`           | Authenticated  | Retrieve the current user's profile               |
+| `POST`   | `/api/notes`             | Authenticated  | Create a note for the current user                |
+| `GET`    | `/api/notes`             | Authenticated  | List notes owned by the current user              |
+| `GET`    | `/api/notes/:id`         | Authenticated  | Retrieve a note; intentionally vulnerable to BOLA |
+| `PUT`    | `/api/notes/:id`         | Owner or admin | Update an authorized note                         |
+| `DELETE` | `/api/notes/:id`         | Owner or admin | Delete an authorized note                         |
+| `POST`   | `/api/projects/metadata` | Authenticated  | Upload project metadata and an artifact           |
+| `GET`    | `/api/projects/metadata` | Authenticated  | List the current user's project metadata          |
+| `GET`    | `/api/admin/users`       | Admin          | List registered users                             |
+
+### Quick BOLA Demonstration
+
+1. Log in as `alice` and copy the returned token.
+2. Request Bob's seeded note:
+
+   ```bash
+   curl -i http://localhost:3000/api/notes/42 \
+     -H "Authorization: Bearer <alice-token>"
+   ```
+
+3. The vulnerable endpoint returns Bob's private note with `HTTP 200 OK`.
+4. Attempting to modify the same note as Alice returns `HTTP 403 Forbidden`,
+   demonstrating the asymmetric read/write authorization controls.
+
+This is only a quick orientation. Do not duplicate the full exploit evidence
+or remediation analysis here; refer to the
+[vulnerability case study](docs/vulnerability-case-study.md).
+
+## Running Tests
+
+Run the end-to-end API and authorization test suite:
+
 ```bash
 npm test
 ```
-The automated test suite runs through all 12 operational and security test cases, verifying both the valid behaviors and confirming the authorization flaw on `GET /api/notes/42`.
 
----
+The suite covers authentication, profile access, note ownership boundaries,
+project metadata, admin role enforcement, the intentional BOLA read, and the
+corresponding write-protection checks.
 
-## 5. Walkthrough & Reproduction via cURL
+## Project Structure
 
-### Step 1: Log in as Alice (Student)
-```bash
-curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "alice", "password": "password123"}'
-```
-*Save the returned `token` into an environment variable:*
-```bash
-ALICE_TOKEN="<token_from_response>"
-```
+| Path                                                                   | Purpose                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------ |
+| [`src/server.js`](src/server.js)                                       | Starts the HTTP server                     |
+| [`src/app.js`](src/app.js)                                             | Configures Express and mounts routes       |
+| [`src/db.js`](src/db.js)                                               | Initializes SQLite and demo seed data      |
+| [`src/middleware/auth.js`](src/middleware/auth.js)                     | JWT authentication and admin authorization |
+| [`src/routes/auth.js`](src/routes/auth.js)                             | Registration and login                     |
+| [`src/routes/profile.js`](src/routes/profile.js)                       | Authenticated profile endpoint             |
+| [`src/routes/notes.js`](src/routes/notes.js)                           | Notes CRUD endpoints                       |
+| [`src/routes/projects.js`](src/routes/projects.js)                     | Project metadata and uploads               |
+| [`src/routes/admin.js`](src/routes/admin.js)                           | Admin user directory                       |
+| [`test/test_api.js`](test/test_api.js)                                 | End-to-end test suite                      |
+| [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security report                   |
 
-### Step 2: View Alice's Profile
-```bash
-curl -s -X GET http://localhost:3000/api/profile \
-  -H "Authorization: Bearer $ALICE_TOKEN"
-```
+## Security Documentation
 
-### Step 3: Exploit the Flaw to Access Bob's Private Note (#42)
-Bob owns Note #42. As Alice, request:
-```bash
-curl -s -X GET http://localhost:3000/api/notes/42 \
-  -H "Authorization: Bearer $ALICE_TOKEN"
-```
-**Result**: The server returns HTTP `200 OK` with Bob's private capstone notes:
-```json
-{
-  "message": "Note retrieved successfully",
-  "note": {
-    "id": 42,
-    "user_id": 2,
-    "title": "Bob's Confidential Project Architecture",
-    "content": "Private Note #42: Confidential capstone design specifications...",
-    "is_private": 1,
-    "author_username": "bob"
-  },
-  "security_notice": "WARNING: Authorization flaw exposed! You retrieved another user's note."
-}
-```
+The [vulnerability case study](docs/vulnerability-case-study.md) contains:
 
-### Step 4: Verify Admin Restriction
-Attempting to view the user list as Alice:
-```bash
-curl -s -X GET http://localhost:3000/api/admin/users \
-  -H "Authorization: Bearer $ALICE_TOKEN"
-```
-**Result**: HTTP `403 Forbidden` (`Administrator privileges are required`).
+- BOLA/IDOR classification using OWASP API1:2023, CWE, and CVSS.
+- Root-cause analysis and affected source code.
+- Reproduction requests and HTTP responses.
+- The `GET 200 OK` versus `PUT 403 Forbidden` asymmetric authorization
+  evidence.
+- Threat model, impact assessment, and remediation options.
+- Additional audit observations and evidence-collection guidance.
+
+## License
+
+This project is distributed under the license specified in
+[`package.json`](package.json).
