@@ -10,6 +10,11 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Express 5 leaves req.body undefined when no parser matched; handlers destructure it
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // Root welcome & endpoint index
 app.get('/', (req, res) => {
