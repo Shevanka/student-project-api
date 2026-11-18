@@ -59,22 +59,12 @@ router.get('/', authenticateToken, (req, res) => {
 
 /**
  * GET /api/notes/:id
- * ============================================================================
- * VULNERABLE ENDPOINT: Broken Object Level Authorization (BOLA / IDOR)
- * ============================================================================
- * Flaw Explanation:
- * 1. The endpoint correctly requires the caller to be logged in (via `authenticateToken`).
- * 2. However, it looks up the note purely by the URL parameter `req.params.id`.
- * 3. It DOES NOT verify that `note.user_id === req.user.id`.
- * 4. Consequently, any authenticated student (e.g. Alice) can request
- *    GET /api/notes/42 and view another student's (e.g. Bob's) private note.
+ * Retrieve a single note (owner or admin only).
  *
- * Secure Remediation:
- * Validate that the requester owns the note before returning it:
- * if (note.user_id !== req.user.id && req.user.role !== 'admin') {
- *   return res.status(403).json({ error: 'Access denied: You do not own this note' });
- * }
- * ============================================================================
+ * Previously vulnerable to BOLA / IDOR: before commit b67a46d the handler
+ * looked the note up by ID without an ownership check, so any authenticated
+ * student could read another student's private note (e.g. Note #42).
+ * See docs/vulnerability-case-study.md.
  */
 router.get('/:id', authenticateToken, (req, res) => {
   const noteId = parseInt(req.params.id, 10);
