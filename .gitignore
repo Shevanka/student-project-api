@@ -1,3 +1,7 @@
 node_modules/
 data.sqlite
 uploads/
+
+# Postman VS Code extension workspace state
+.postman/
+postman/

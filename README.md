@@ -1,15 +1,34 @@
 # Student Project Management API
 
 A Node.js and Express REST API for academic project collaboration, private
-notes, and project artifact metadata. The repository is also an intentionally
-vulnerable security research testbed demonstrating Broken Object Level
-Authorization (BOLA), also known as Insecure Direct Object Reference (IDOR).
+notes, and project artifact metadata. The repository serves as an educational
+cybersecurity research testbed evaluating Broken Object Level Authorization (BOLA),
+also known as Insecure Direct Object Reference (IDOR).
 
-> **Security warning:** This application contains an intentional BOLA
-> vulnerability in `GET /api/notes/:id`. Do not deploy it with real data or
-> expose it to an untrusted network. See the
-> [vulnerability case study](docs/vulnerability-case-study.md) for the full
-> analysis, evidence, impact assessment, and remediation guidance.
+> ⚠️ **Security Warning:** This repository is strictly an educational security research lab.
+> It contains intentionally weak demonstration credentials (`password123`, `adminpassword123`)
+> and hardcoded development secrets. It must **NEVER** be deployed to production or exposed to
+> untrusted public networks. See the [vulnerability case study](docs/vulnerability-case-study.md)
+> for the comprehensive security audit, threat model, evidence artifacts, and remediation analysis.
+
+## Version History & Status
+
+- **Vulnerable baseline — commit `81646e8`**: the initial commit, where
+  `GET /api/notes/:id` returns any note to any authenticated user.
+- **Remediation — commit `b67a46d`, merged to `main` in PR #1**: `GET /api/notes/:id`
+  enforces object-level authorization
+  (`note.user_id === req.user.id || req.user.role === 'admin'`) and the test suite
+  asserts that cross-user reads are rejected.
+
+`main` contains the remediated code. To reproduce the original flaw, check out the
+baseline in a separate worktree:
+
+```bash
+git worktree add ../student-project-api-baseline 81646e8
+cd ../student-project-api-baseline
+npm install
+npm test   # Test 11 confirms Alice can read Bob's Note #42
+```
 
 ## Features
 
@@ -20,11 +39,12 @@ Authorization (BOLA), also known as Insecure Direct Object Reference (IDOR).
 - Project metadata and multipart file upload.
 - Admin-only user directory.
 - SQLite persistence with seeded demo data.
-- End-to-end API and authorization tests.
+- End-to-end API and authorization regression tests.
 
 ## Prerequisites
 
-- Node.js 22 or later. The project uses Node's built-in `node:sqlite` module.
+- Node.js 22.13 or later. The project uses Node's built-in `node:sqlite` module,
+  which earlier 22.x releases only expose behind `--experimental-sqlite`.
 - npm.
 
 ## Installation
@@ -76,36 +96,42 @@ All endpoints other than registration and login require a JWT in the
 Authorization: Bearer <token>
 ```
 
-| Method   | Endpoint                 | Access         | Description                                       |
-| -------- | ------------------------ | -------------- | ------------------------------------------------- |
-| `POST`   | `/api/auth/register`     | Public         | Register a student account                        |
-| `POST`   | `/api/auth/login`        | Public         | Authenticate and receive a JWT                    |
-| `GET`    | `/api/profile`           | Authenticated  | Retrieve the current user's profile               |
-| `POST`   | `/api/notes`             | Authenticated  | Create a note for the current user                |
-| `GET`    | `/api/notes`             | Authenticated  | List notes owned by the current user              |
-| `GET`    | `/api/notes/:id`         | Authenticated  | Retrieve a note; intentionally vulnerable to BOLA |
-| `PUT`    | `/api/notes/:id`         | Owner or admin | Update an authorized note                         |
-| `DELETE` | `/api/notes/:id`         | Owner or admin | Delete an authorized note                         |
-| `POST`   | `/api/projects/metadata` | Authenticated  | Upload project metadata and an artifact           |
-| `GET`    | `/api/projects/metadata` | Authenticated  | List the current user's project metadata          |
-| `GET`    | `/api/admin/users`       | Admin          | List registered users                             |
+| Method   | Endpoint                 | Access         | Description                                                        |
+| -------- | ------------------------ | -------------- | ------------------------------------------------------------------ |
+| `POST`   | `/api/auth/register`     | Public         | Register a student account                                         |
+| `POST`   | `/api/auth/login`        | Public         | Authenticate and receive a JWT                                     |
+| `GET`    | `/api/profile`           | Authenticated  | Retrieve the current user's profile                                |
+| `POST`   | `/api/notes`             | Authenticated  | Create a note for the current user                                 |
+| `GET`    | `/api/notes`             | Authenticated  | List notes owned by the current user                               |
+| `GET`    | `/api/notes/:id`         | Owner or admin | Retrieve an authorized note (remediated; unauthorized returns 403) |
+| `PUT`    | `/api/notes/:id`         | Owner or admin | Update an authorized note                                          |
+| `DELETE` | `/api/notes/:id`         | Owner or admin | Delete an authorized note                                          |
+| `POST`   | `/api/projects/metadata` | Authenticated  | Upload project metadata and an artifact                            |
+| `GET`    | `/api/projects/metadata` | Authenticated  | List the current user's project metadata                           |
+| `GET`    | `/api/admin/users`       | Admin          | List registered users                                              |
 
-### Quick BOLA Demonstration
+### BOLA Demonstration & Verification
 
-1. Log in as `alice` and copy the returned token.
-2. Request Bob's seeded note:
+1. **Baseline Vulnerability (commit `81646e8`)**:
+   - In the unpatched baseline, Student Alice (`user_id = 1`) could request Note #42 owned by Student Bob (`user_id = 2`) via `GET /api/notes/42` and receive `HTTP 200 OK` with Bob's private capstone notes.
+   - Conversely, attempting to modify the same note via `PUT /api/notes/42` returned `HTTP 403 Forbidden`, exposing an asymmetric authorization boundary in the read handler.
 
-   ```bash
-   curl -i http://localhost:3000/api/notes/42 \
-     -H "Authorization: Bearer <alice-token>"
-   ```
+2. **Remediated Behavior (current `main`)**:
+   - `GET /api/notes/:id` enforces object ownership.
+   - When Alice requests Bob's Note #42:
+     ```bash
+     curl -i http://localhost:3000/api/notes/42 \
+       -H "Authorization: Bearer <alice-token>"
+     ```
+   - The server rejects the unauthorized request with:
+     ```http
+     HTTP/1.1 403 Forbidden
+     Content-Type: application/json
 
-3. The vulnerable endpoint returns Bob's private note with `HTTP 200 OK`.
-4. Attempting to modify the same note as Alice returns `HTTP 403 Forbidden`,
-   demonstrating the asymmetric read/write authorization controls.
+     {"error":"Forbidden: You do not have permission to view this note"}
+     ```
 
-This is only a quick orientation. Do not duplicate the full exploit evidence
-or remediation analysis here; refer to the
+For full exploit evidence, CVSS risk scoring, and architectural remediation options, refer to the
 [vulnerability case study](docs/vulnerability-case-study.md).
 
 ## Running Tests
@@ -117,8 +143,8 @@ npm test
 ```
 
 The suite covers authentication, profile access, note ownership boundaries,
-project metadata, admin role enforcement, the intentional BOLA read, and the
-corresponding write-protection checks.
+project metadata, admin role enforcement, and verifies that cross-user private note
+retrieval is blocked with `HTTP 403 Forbidden`.
 
 ## Project Structure
 
@@ -130,25 +156,24 @@ corresponding write-protection checks.
 | [`src/middleware/auth.js`](src/middleware/auth.js)                     | JWT authentication and admin authorization |
 | [`src/routes/auth.js`](src/routes/auth.js)                             | Registration and login                     |
 | [`src/routes/profile.js`](src/routes/profile.js)                       | Authenticated profile endpoint             |
-| [`src/routes/notes.js`](src/routes/notes.js)                           | Notes CRUD endpoints                       |
+| [`src/routes/notes.js`](src/routes/notes.js)                           | Notes CRUD endpoints (Remediated)          |
 | [`src/routes/projects.js`](src/routes/projects.js)                     | Project metadata and uploads               |
 | [`src/routes/admin.js`](src/routes/admin.js)                           | Admin user directory                       |
-| [`test/test_api.js`](test/test_api.js)                                 | End-to-end test suite                      |
-| [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security report                   |
+| [`test/test_api.js`](test/test_api.js)                                 | End-to-end regression test suite           |
+| [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security audit report             |
+| [`docs/agent-vulnerability-walkthrough.md`](docs/agent-vulnerability-walkthrough.md) | Step-by-step brief for an AI agent reproducing and fixing the flaw |
 
 ## Security Documentation
 
 The [vulnerability case study](docs/vulnerability-case-study.md) contains:
 
 - BOLA/IDOR classification using OWASP API1:2023, CWE, and CVSS.
-- Root-cause analysis and affected source code.
-- Reproduction requests and HTTP responses.
-- The `GET 200 OK` versus `PUT 403 Forbidden` asymmetric authorization
-  evidence.
-- Threat model, impact assessment, and remediation options.
+- Root-cause analysis and affected source code (with pre-fix historical evidence).
+- Reproduction requests, responses, and visual screenshot evidence.
+- The `GET 200 OK` versus `PUT 403 Forbidden` asymmetric authorization analysis.
+- Threat model, impact assessment, and the applied remediation.
 - Additional audit observations and evidence-collection guidance.
 
 ## License
 
-This project is distributed under the license specified in
-[`package.json`](package.json).
+This project is distributed under the [MIT License](LICENSE).
