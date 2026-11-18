@@ -82,6 +82,10 @@ async function runTests() {
     assert.strictEqual(adminLogin.status, 200);
     const adminToken = adminLogin.data.token;
 
+    // Missing body must be a validation error, not a 500 (Express 5 leaves req.body undefined)
+    const noBodyLogin = await request('/api/auth/login', { method: 'POST' });
+    assert.strictEqual(noBodyLogin.status, 400, 'Login without a body must return 400');
+
     // 3. Register a new student
     console.log('[Test 3] POST /api/auth/register (New student registration)');
     const regRes = await request('/api/auth/register', {
@@ -94,6 +98,9 @@ async function runTests() {
     });
     assert.strictEqual(regRes.status, 201);
     assert.strictEqual(regRes.data.user.role, 'student');
+
+    const noBodyRegister = await request('/api/auth/register', { method: 'POST' });
+    assert.strictEqual(noBodyRegister.status, 400, 'Register without a body must return 400');
 
     // 4. View own profile
     console.log('[Test 4] GET /api/profile (Authenticated profile retrieval)');
@@ -123,6 +130,12 @@ async function runTests() {
     const createdNoteId = createNoteRes.data.note.id;
     assert.strictEqual(createNoteRes.data.note.user_id, 1);
 
+    const noBodyNote = await request('/api/notes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${aliceToken}` },
+    });
+    assert.strictEqual(noBodyNote.status, 400, 'Note creation without a body must return 400');
+
     // 6. List student's own notes
     console.log('[Test 6] GET /api/notes (List own notes)');
     const listNotesRes = await request('/api/notes', {
@@ -144,6 +157,14 @@ async function runTests() {
     assert.strictEqual(updateRes.status, 200);
     assert.strictEqual(updateRes.data.note.title, "Alice's Quantum Computing Notes (Revised)");
 
+    // An empty update leaves the note unchanged
+    const noBodyUpdate = await request(`/api/notes/${createdNoteId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${aliceToken}` },
+    });
+    assert.strictEqual(noBodyUpdate.status, 200, 'Update without a body must not error');
+    assert.strictEqual(noBodyUpdate.data.note.title, "Alice's Quantum Computing Notes (Revised)");
+
     // 8. Delete own note
     console.log('[Test 8] DELETE /api/notes/:id (Delete own note)');
     const deleteRes = await request(`/api/notes/${createdNoteId}`, {
@@ -164,6 +185,12 @@ async function runTests() {
     });
     assert.strictEqual(uploadMetaRes.status, 201);
     assert.strictEqual(uploadMetaRes.data.metadata.project_name, 'Distributed Ledger Engine');
+
+    const noBodyMeta = await request('/api/projects/metadata', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${aliceToken}` },
+    });
+    assert.strictEqual(noBodyMeta.status, 400, 'Metadata upload without a body must return 400');
 
     const getMetaRes = await request('/api/projects/metadata', {
       headers: { Authorization: `Bearer ${aliceToken}` },
