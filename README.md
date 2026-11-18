@@ -11,10 +11,24 @@ also known as Insecure Direct Object Reference (IDOR).
 > untrusted public networks. See the [vulnerability case study](docs/vulnerability-case-study.md)
 > for the comprehensive security audit, threat model, evidence artifacts, and remediation analysis.
 
-## Branch Structure & Status
+## Version History & Status
 
-- **`main`**: Historical baseline preserving the original, intentionally vulnerable BOLA implementation on `GET /api/notes/:id` for demonstration, audit, and benchmark purposes.
-- **`research/bola-remediation` (Current Branch)**: Contains the **remediated implementation** enforcing object-level authorization (`note.user_id === req.user.id || req.user.role === 'admin'`) and an updated 12-point automated regression test suite.
+- **Vulnerable baseline — commit `81646e8`**: the initial commit, where
+  `GET /api/notes/:id` returns any note to any authenticated user.
+- **Remediation — commit `b67a46d`, merged to `main` in PR #1**: `GET /api/notes/:id`
+  enforces object-level authorization
+  (`note.user_id === req.user.id || req.user.role === 'admin'`) and the test suite
+  asserts that cross-user reads are rejected.
+
+`main` contains the remediated code. To reproduce the original flaw, check out the
+baseline in a separate worktree:
+
+```bash
+git worktree add ../student-project-api-baseline 81646e8
+cd ../student-project-api-baseline
+npm install
+npm test   # Test 11 confirms Alice can read Bob's Note #42
+```
 
 ## Features
 
@@ -29,7 +43,8 @@ also known as Insecure Direct Object Reference (IDOR).
 
 ## Prerequisites
 
-- Node.js 22 or later. The project uses Node's built-in `node:sqlite` module.
+- Node.js 22.13 or later. The project uses Node's built-in `node:sqlite` module,
+  which earlier 22.x releases only expose behind `--experimental-sqlite`.
 - npm.
 
 ## Installation
@@ -97,18 +112,18 @@ Authorization: Bearer <token>
 
 ### BOLA Demonstration & Verification
 
-1. **Baseline Vulnerability (on `main`)**:
+1. **Baseline Vulnerability (commit `81646e8`)**:
    - In the unpatched baseline, Student Alice (`user_id = 1`) could request Note #42 owned by Student Bob (`user_id = 2`) via `GET /api/notes/42` and receive `HTTP 200 OK` with Bob's private capstone notes.
    - Conversely, attempting to modify the same note via `PUT /api/notes/42` returned `HTTP 403 Forbidden`, exposing an asymmetric authorization boundary in the read handler.
 
-2. **Remediated Behavior (on `research/bola-remediation`)**:
-   - On this branch, `GET /api/notes/:id` enforces object ownership.
+2. **Remediated Behavior (current `main`)**:
+   - `GET /api/notes/:id` enforces object ownership.
    - When Alice requests Bob's Note #42:
      ```bash
      curl -i http://localhost:3000/api/notes/42 \
        -H "Authorization: Bearer <alice-token>"
      ```
-   - The server uniformly rejects the unauthorized request with:
+   - The server rejects the unauthorized request with:
      ```http
      HTTP/1.1 403 Forbidden
      Content-Type: application/json
@@ -146,6 +161,7 @@ retrieval is blocked with `HTTP 403 Forbidden`.
 | [`src/routes/admin.js`](src/routes/admin.js)                           | Admin user directory                       |
 | [`test/test_api.js`](test/test_api.js)                                 | End-to-end regression test suite           |
 | [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security audit report             |
+| [`docs/agent-vulnerability-walkthrough.md`](docs/agent-vulnerability-walkthrough.md) | Step-by-step brief for an AI agent reproducing and fixing the flaw |
 
 ## Security Documentation
 
@@ -160,5 +176,4 @@ The [vulnerability case study](docs/vulnerability-case-study.md) contains:
 
 ## License
 
-This project is distributed under the license specified in
-[`package.json`](package.json).
+This project is distributed under the [MIT License](LICENSE).
