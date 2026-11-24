@@ -10,13 +10,18 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Express 5 leaves req.body undefined when no parser matched; handlers destructure it
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // Root welcome & endpoint index
 app.get('/', (req, res) => {
   res.json({
     name: 'Student Portal REST API',
     version: '1.0.0',
-    description: 'Educational REST API demonstrating authentication, role-based access control, and an authorization vulnerability (BOLA / IDOR).',
+    description: 'Educational REST API demonstrating authentication, role-based access control, and a remediated authorization vulnerability (BOLA / IDOR).',
     endpoints: {
       auth: {
         register: 'POST /api/auth/register',
@@ -28,7 +33,7 @@ app.get('/', (req, res) => {
       notes: {
         create: 'POST /api/notes',
         list: 'GET /api/notes',
-        get_by_id: 'GET /api/notes/:id (VULNERABLE to BOLA/IDOR)',
+        get_by_id: 'GET /api/notes/:id (Owner or admin; BOLA/IDOR remediated)',
         update: 'PUT /api/notes/:id',
         delete: 'DELETE /api/notes/:id',
       },
