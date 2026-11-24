@@ -161,7 +161,6 @@ retrieval is blocked with `HTTP 403 Forbidden`.
 | [`src/routes/admin.js`](src/routes/admin.js)                           | Admin user directory                       |
 | [`test/test_api.js`](test/test_api.js)                                 | End-to-end regression test suite           |
 | [`docs/vulnerability-case-study.md`](docs/vulnerability-case-study.md) | Detailed security audit report             |
-| [`docs/agent-vulnerability-walkthrough.md`](docs/agent-vulnerability-walkthrough.md) | Step-by-step brief for an AI agent reproducing and fixing the flaw |
 
 ## Security Documentation
 
